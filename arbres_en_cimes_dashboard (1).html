@@ -1,0 +1,2010 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arbres en Cimes V1 - Dashboard Élagage & Travaux Forestiers</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        forest: {
+                            50: '#f2f9f4',
+                            100: '#e1f2e5',
+                            500: '#2d6a4f',
+                            600: '#1b4332',
+                            700: '#081c15',
+                            800: '#040f0b',
+                        },
+                        wood: {
+                            100: '#fdf6ee',
+                            500: '#d4a373',
+                            600: '#bc6c25',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet.js CDN pour la carte interactive -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        #map { min-height: 500px; height: 100%; width: 100%; z-index: 1; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="h-full text-slate-800 flex flex-col bg-slate-100">
+
+    <!-- Header principal -->
+    <header class="bg-forest-700 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo & Brand -->
+                <div class="flex items-center space-x-3">
+                    <div class="bg-forest-500 text-white p-2.5 rounded-xl shadow-inner flex items-center justify-center">
+                        <i class="fa-solid font-bold fa-tree text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                            ARBRES EN CIMES <span class="bg-wood-600 text-xs px-2 py-0.5 rounded-md font-semibold">V1</span>
+                        </h1>
+                        <p class="text-xs text-forest-100 font-medium hidden sm:block">Savoie & Isère • Élagage, Abattage & Travaux Forestiers</p>
+                    </div>
+                </div>
+
+                <!-- Control actions (Data management) -->
+                <div class="flex items-center space-x-2">
+                    <button onclick="loadDemoData()" title="Charger un jeu de données de test" class="text-xs bg-forest-600 hover:bg-forest-500 text-emerald-100 px-3 py-1.5 rounded-lg border border-forest-500 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-flask"></i> <span class="hidden md:inline">Charger démo</span>
+                    </button>
+                    <button onclick="exportDataJSON()" title="Exporter la base en JSON" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-600 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-download"></i> <span class="hidden md:inline">Exporter</span>
+                    </button>
+                    <label class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-600 transition flex items-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-upload"></i> <span class="hidden md:inline">Importer</span>
+                        <input type="file" id="importFileInput" onchange="importDataJSON(event)" class="hidden" accept=".json">
+                    </label>
+                    <button onclick="confirmResetAllData()" title="Réinitialiser à zéro" class="text-xs bg-rose-900/80 hover:bg-rose-800 text-rose-100 px-3 py-1.5 rounded-lg border border-rose-700 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-trash-can"></i> <span class="hidden lg:inline">Vider</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="bg-forest-600 border-t border-forest-500 overflow-x-auto custom-scrollbar">
+            <div class="max-w-7xl mx-auto px-2 sm:px-4 flex space-x-1 sm:space-x-2 py-1.5">
+                <button onclick="switchTab('dashboard')" id="tab-btn-dashboard" class="tab-btn text-xs sm:text-sm font-medium px-3 py-2 rounded-lg whitespace-nowrap transition text-white bg-forest-700 shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-chart-line text-emerald-300"></i> Tableau de bord
+                </button>
+                <button onclick="switchTab('devis')" id="tab-btn-devis" class="tab-btn text-xs sm:text-sm font-medium px-3 py-2 rounded-lg whitespace-nowrap transition text-emerald-100 hover:bg-forest-500 flex items-center gap-2">
+                    <i class="fa-solid fa-file-invoice-dollar text-emerald-300"></i> Devis
+                </button>
+                <button onclick="switchTab('chantiers')" id="tab-btn-chantiers" class="tab-btn text-xs sm:text-sm font-medium px-3 py-2 rounded-lg whitespace-nowrap transition text-emerald-100 hover:bg-forest-500 flex items-center gap-2">
+                    <i class="fa-solid fa-helmet-safety text-emerald-300"></i> Chantiers
+                </button>
+                <button onclick="switchTab('carte')" id="tab-btn-carte" class="tab-btn text-xs sm:text-sm font-medium px-3 py-2 rounded-lg whitespace-nowrap transition text-emerald-100 hover:bg-forest-500 flex items-center gap-2">
+                    <i class="fa-solid fa-map-location-dot text-emerald-300"></i> Carte Interactive
+                </button>
+                <button onclick="switchTab('salaries')" id="tab-btn-salaries" class="tab-btn text-xs sm:text-sm font-medium px-3 py-2 rounded-lg whitespace-nowrap transition text-emerald-100 hover:bg-forest-500 flex items-center gap-2">
+                    <i class="fa-solid fa-users text-emerald-300"></i> Salariés
+                </button>
+                <button onclick="switchTab('materiel')" id="tab-btn-materiel" class="tab-btn text-xs sm:text-sm font-medium px-3 py-2 rounded-lg whitespace-nowrap transition text-emerald-100 hover:bg-forest-500 flex items-center gap-2">
+                    <i class="fa-solid fa-truck-monster text-emerald-300"></i> Parc Matériel
+                </button>
+                <button onclick="switchTab('carburant')" id="tab-btn-carburant" class="tab-btn text-xs sm:text-sm font-medium px-3 py-2 rounded-lg whitespace-nowrap transition text-emerald-100 hover:bg-forest-500 flex items-center gap-2">
+                    <i class="fa-solid fa-gas-pump text-emerald-300"></i> Carburant & Coûts
+                </button>
+                <button onclick="switchTab('clients')" id="tab-btn-clients" class="tab-btn text-xs sm:text-sm font-medium px-3 py-2 rounded-lg whitespace-nowrap transition text-emerald-100 hover:bg-forest-500 flex items-center gap-2">
+                    <i class="fa-solid fa-building-user text-emerald-300"></i> Clients
+                </button>
+                <button onclick="switchTab('rentabilite')" id="tab-btn-rentabilite" class="tab-btn text-xs sm:text-sm font-medium px-3 py-2 rounded-lg whitespace-nowrap transition text-emerald-100 hover:bg-forest-500 flex items-center gap-2">
+                    <i class="fa-solid fa-calculator text-emerald-300"></i> Rentabilité
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Notification Toast Container -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- Container Principal des contenus -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+
+        <!-- ==================== TAB 1 : TABLEAU DE BORD ==================== -->
+        <div id="tab-dashboard" class="tab-content active space-y-6">
+            <!-- Header section avec info base vierge -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-forest-600"></i> Vue d'ensemble de l'entreprise
+                    </h2>
+                    <p class="text-xs text-slate-500">Savoie (73) & Isère (38) • Chiffres clés & performance en temps réel</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="openModal('modalDevis')" class="text-xs font-semibold bg-forest-600 hover:bg-forest-700 text-white px-3 py-2 rounded-lg shadow-sm transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-plus"></i> Nouveau Devis
+                    </button>
+                    <button onclick="openModal('modalChantier')" class="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg shadow-sm transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-tree"></i> Créer Chantier
+                    </button>
+                </div>
+            </div>
+
+            <!-- Metric Cards (KPI) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- KPI 1 -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">CA Réalisé (HT)</p>
+                            <h3 id="kpi-ca" class="text-2xl font-bold text-slate-900 mt-1">0 €</h3>
+                        </div>
+                        <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                            <i class="fa-solid fa-euro-sign text-xl"></i>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-3 flex items-center gap-1">
+                        <i class="fa-solid fa-circle-info text-emerald-500"></i> Sur chantiers facturés / terminés
+                    </p>
+                </div>
+
+                <!-- KPI 2 -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Devis en cours / Acceptés</p>
+                            <h3 id="kpi-devis-montant" class="text-2xl font-bold text-slate-900 mt-1">0 €</h3>
+                        </div>
+                        <div class="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                            <i class="fa-solid fa-file-signature text-xl"></i>
+                        </div>
+                    </div>
+                    <p id="kpi-devis-count" class="text-xs text-slate-400 mt-3">0 devis enregistrés</p>
+                </div>
+
+                <!-- KPI 3 -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Chantiers Actifs</p>
+                            <h3 id="kpi-chantiers-actifs" class="text-2xl font-bold text-slate-900 mt-1">0</h3>
+                        </div>
+                        <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                            <i class="fa-solid fa-person-digging text-xl"></i>
+                        </div>
+                    </div>
+                    <p id="kpi-chantiers-total" class="text-xs text-slate-400 mt-3">0 chantiers au total</p>
+                </div>
+
+                <!-- KPI 4 -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Effectif & Matériel</p>
+                            <h3 id="kpi-salaries-materiel" class="text-2xl font-bold text-slate-900 mt-1">0 / 0</h3>
+                        </div>
+                        <div class="p-3 bg-purple-50 text-purple-600 rounded-xl">
+                            <i class="fa-solid fa-users-gear text-xl"></i>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-3">Salariés / Engins opérationnels</p>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Chart 1: Repartition Chantiers -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-chart-pie text-forest-600"></i> Types d'Intervention
+                        </h3>
+                    </div>
+                    <div class="h-64 relative flex items-center justify-center">
+                        <canvas id="chartTypeChantiers"></canvas>
+                        <div id="emptyChartType" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-50/80 rounded-lg">
+                            <i class="fa-solid fa-tree text-3xl mb-2 text-slate-300"></i>
+                            <p class="text-xs font-medium">Aucun chantier renseigné</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart 2: Devis Statut -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-chart-bar text-forest-600"></i> État du Portefeuille Devis
+                        </h3>
+                    </div>
+                    <div class="h-64 relative flex items-center justify-center">
+                        <canvas id="chartDevisStatut"></canvas>
+                        <div id="emptyChartDevis" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-50/80 rounded-lg">
+                            <i class="fa-solid fa-file-invoice text-3xl mb-2 text-slate-300"></i>
+                            <p class="text-xs font-medium">Aucun devis enregistré</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 2 : DEVIS ==================== -->
+        <div id="tab-devis" class="tab-content space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-file-invoice-dollar text-forest-600"></i> Gestion des Devis
+                    </h2>
+                    <p class="text-xs text-slate-500">Chiffrage et suivi commercial des projets d'élagage & abattage</p>
+                </div>
+                <button onclick="openModal('modalDevis')" class="bg-forest-600 hover:bg-forest-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-sm transition flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Créer un devis
+                </button>
+            </div>
+
+            <!-- Table Devis -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between gap-3">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+                        <input type="text" id="searchDevis" oninput="renderDevisTable()" placeholder="Rechercher un devis (N°, client, commune)..." class="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select id="filterDevisStatut" onchange="renderDevisTable()" class="text-xs border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-forest-500">
+                            <option value="">Tous les statuts</option>
+                            <option value="Brouillon">Brouillon</option>
+                            <option value="Envoyé">Envoyé</option>
+                            <option value="Accepté">Accepté</option>
+                            <option value="Refusé">Refusé</option>
+                            <option value="Facturé">Facturé</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-600">
+                        <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200">
+                            <tr>
+                                <th class="p-3.5">N° Devis</th>
+                                <th class="p-3.5">Client</th>
+                                <th class="p-3.5">Prestation & Lieu</th>
+                                <th class="p-3.5">Montant HT</th>
+                                <th class="p-3.5">Montant TTC</th>
+                                <th class="p-3.5">Statut</th>
+                                <th class="p-3.5">Date</th>
+                                <th class="p-3.5 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="devisTableBody" class="divide-y divide-slate-100">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 3 : CHANTIERS ==================== -->
+        <div id="tab-chantiers" class="tab-content space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-helmet-safety text-forest-600"></i> Suivi des Chantiers
+                    </h2>
+                    <p class="text-xs text-slate-500">Planification des opérations d'élagage, abattage délicat & broyage</p>
+                </div>
+                <button onclick="openModal('modalChantier')" class="bg-forest-600 hover:bg-forest-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-sm transition flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Nouveau chantier
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between gap-3">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+                        <input type="text" id="searchChantiers" oninput="renderChantiersTable()" placeholder="Rechercher par client, commune, type..." class="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select id="filterChantierType" onchange="renderChantiersTable()" class="text-xs border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-forest-500">
+                            <option value="">Tous les types</option>
+                            <option value="Élagage">Élagage</option>
+                            <option value="Abattage">Abattage délicat</option>
+                            <option value="Broyage">Broyage / Débroussaillage</option>
+                            <option value="Élagage Enedis">Élagage Enedis</option>
+                            <option value="Dessouchage">Dessouchage</option>
+                        </select>
+                        <select id="filterChantierStatut" onchange="renderChantiersTable()" class="text-xs border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-forest-500">
+                            <option value="">Tous les statuts</option>
+                            <option value="À venir">À venir</option>
+                            <option value="En cours">En cours</option>
+                            <option value="Terminé">Terminé</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-600">
+                        <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200">
+                            <tr>
+                                <th class="p-3.5">Code / Intitulé</th>
+                                <th class="p-3.5">Client & Commune</th>
+                                <th class="p-3.5">Type</th>
+                                <th class="p-3.5">Équipe assignée</th>
+                                <th class="p-3.5">Statut</th>
+                                <th class="p-3.5">Dates</th>
+                                <th class="p-3.5 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="chantiersTableBody" class="divide-y divide-slate-100">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 4 : CARTE INTERACTIVE ==================== -->
+        <div id="tab-carte" class="tab-content space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-map-location-dot text-forest-600"></i> Carte Interactive des Chantiers (Savoie & Isère)
+                    </h2>
+                    <p class="text-xs text-slate-500">Visualisez les interventions géolocalisées et cliquez sur la carte pour positionner un nouveau chantier</p>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs font-semibold text-slate-600">Légende :</span>
+                    <span class="inline-flex items-center gap-1 text-[11px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full"><i class="fa-solid fa-circle text-emerald-600 text-[8px]"></i> En cours</span>
+                    <span class="inline-flex items-center gap-1 text-[11px] bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full"><i class="fa-solid fa-circle text-sky-600 text-[8px]"></i> À venir</span>
+                    <span class="inline-flex items-center gap-1 text-[11px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded-full"><i class="fa-solid fa-circle text-slate-500 text-[8px]"></i> Terminé</span>
+                    <span class="inline-flex items-center gap-1 text-[11px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full"><i class="fa-solid fa-circle text-amber-600 text-[8px]"></i> Élagage Enedis</span>
+                </div>
+            </div>
+
+            <!-- Filtres Carte -->
+            <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-3">
+                <div class="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                    <i class="fa-solid fa-filter text-forest-600"></i> Filtrer la carte :
+                </div>
+                <select id="mapFilterType" onchange="updateMapMarkers()" class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-forest-500">
+                    <option value="">Tous les types</option>
+                    <option value="Élagage">Élagage</option>
+                    <option value="Abattage">Abattage délicat</option>
+                    <option value="Broyage">Broyage</option>
+                    <option value="Élagage Enedis">Élagage Enedis</option>
+                </select>
+                <select id="mapFilterStatut" onchange="updateMapMarkers()" class="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-forest-500">
+                    <option value="">Tous les statuts</option>
+                    <option value="En cours">En cours</option>
+                    <option value="À venir">À venir</option>
+                    <option value="Terminé">Terminé</option>
+                </select>
+                <span class="text-xs text-slate-400 italic ml-auto hidden md:inline"><i class="fa-solid fa-mouse-pointer"></i> Astuce : Cliquez sur la carte pour créer un chantier aux coordonnées sélectionnées.</span>
+            </div>
+
+            <!-- Map Container -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative" style="height: 580px;">
+                <div id="map"></div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 5 : SALARIÉS ==================== -->
+        <div id="tab-salaries" class="tab-content space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-users text-forest-600"></i> Gestion des Salariés & Habilitations
+                    </h2>
+                    <p class="text-xs text-slate-500">Élagueurs-grimpeurs, chauffeurs, chefs d'équipe & suivi des recyclages (CACES, Enedis, SST)</p>
+                </div>
+                <button onclick="openModal('modalSalarie')" class="bg-forest-600 hover:bg-forest-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-sm transition flex items-center gap-2">
+                    <i class="fa-solid fa-user-plus"></i> Nouveau salarié
+                </button>
+            </div>
+
+            <!-- Table Salariés -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between gap-3">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+                        <input type="text" id="searchSalaries" oninput="renderSalariesTable()" placeholder="Rechercher un salarié, rôle, habilitation..." class="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select id="filterSalarieRole" onchange="renderSalariesTable()" class="text-xs border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-forest-500">
+                            <option value="">Tous les postes</option>
+                            <option value="Chef d'équipe">Chef d'équipe</option>
+                            <option value="Élagueur-grimpeur">Élagueur-grimpeur</option>
+                            <option value="Chauffeur d'engin">Chauffeur d'engin</option>
+                            <option value="Homme de pied">Homme de pied</option>
+                            <option value="Apprenti">Apprenti</option>
+                        </select>
+                        <select id="filterSalarieStatut" onchange="renderSalariesTable()" class="text-xs border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-forest-500">
+                            <option value="">Tous les statuts</option>
+                            <option value="Disponible">Disponible</option>
+                            <option value="En chantier">En chantier</option>
+                            <option value="En congé">En congé</option>
+                            <option value="Formation">Formation</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-600">
+                        <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200">
+                            <tr>
+                                <th class="p-3.5">Salarié</th>
+                                <th class="p-3.5">Poste / Rôle</th>
+                                <th class="p-3.5">Habilitations & Certifications</th>
+                                <th class="p-3.5">Validité Recyclage</th>
+                                <th class="p-3.5">Taux Horaire</th>
+                                <th class="p-3.5">Statut</th>
+                                <th class="p-3.5 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="salariesTableBody" class="divide-y divide-slate-100">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 6 : MATÉRIEL ==================== -->
+        <div id="tab-materiel" class="tab-content space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-truck-monster text-forest-600"></i> Parc Matériel & Engins
+                    </h2>
+                    <p class="text-xs text-slate-500">Camions, broyeurs, rogneuses, robots télécommandés et suivi des entretiens</p>
+                </div>
+                <button onclick="openModal('modalMateriel')" class="bg-forest-600 hover:bg-forest-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-sm transition flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Ajouter matériel
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between gap-3">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+                        <input type="text" id="searchMateriel" oninput="renderMaterielTable()" placeholder="Rechercher un engin, immatriculation, type..." class="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500">
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-600">
+                        <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200">
+                            <tr>
+                                <th class="p-3.5">Code / Nom</th>
+                                <th class="p-3.5">Catégorie</th>
+                                <th class="p-3.5">Immat / Série</th>
+                                <th class="p-3.5">Compteur (Heures/Km)</th>
+                                <th class="p-3.5">Prochain Entretien</th>
+                                <th class="p-3.5">Statut</th>
+                                <th class="p-3.5 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="materielTableBody" class="divide-y divide-slate-100">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 7 : CARBURANT & COÛTS ==================== -->
+        <div id="tab-carburant" class="tab-content space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-gas-pump text-forest-600"></i> Suivi Carburant & Consommables
+                    </h2>
+                    <p class="text-xs text-slate-500">Suivi du Gasoil routier/GNR, huiles de chaîne & mélanges tronçonneuses</p>
+                </div>
+                <button onclick="openModal('modalCarburant')" class="bg-forest-600 hover:bg-forest-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-sm transition flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Saisir pleins / consommables
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-xs font-medium text-slate-500">Total Volume Gasoil / GNR</p>
+                    <p id="totalGasoil" class="text-2xl font-bold text-slate-800 mt-1">0 L</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-xs font-medium text-slate-500">Total Huile & Mélange 2T</p>
+                    <p id="totalHuile" class="text-2xl font-bold text-slate-800 mt-1">0 L</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-xs font-medium text-slate-500">Dépense Carburant Totale</p>
+                    <p id="totalCarburantEuros" class="text-2xl font-bold text-emerald-700 mt-1">0 €</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-600">
+                        <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200">
+                            <tr>
+                                <th class="p-3.5">Date</th>
+                                <th class="p-3.5">Type Consommable</th>
+                                <th class="p-3.5">Quantité (L)</th>
+                                <th class="p-3.5">Prix Total (€)</th>
+                                <th class="p-3.5">Engin / Véhicule</th>
+                                <th class="p-3.5">Saisi par</th>
+                                <th class="p-3.5 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="carburantTableBody" class="divide-y divide-slate-100">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 8 : CLIENTS ==================== -->
+        <div id="tab-clients" class="tab-content space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-building-user text-forest-600"></i> Repertoire Clients & Donneurs d'Ordres
+                    </h2>
+                    <p class="text-xs text-slate-500">Particuliers, Mairies (Savoie/Isère), Syndics, Enedis & Entreprises</p>
+                </div>
+                <button onclick="openModal('modalClient')" class="bg-forest-600 hover:bg-forest-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-sm transition flex items-center gap-2">
+                    <i class="fa-solid fa-user-plus"></i> Nouveau client
+                </button>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/50">
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+                        <input type="text" id="searchClients" oninput="renderClientsTable()" placeholder="Rechercher un client, commune, type..." class="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-forest-500">
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-600">
+                        <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200">
+                            <tr>
+                                <th class="p-3.5">Nom / Raison Sociale</th>
+                                <th class="p-3.5">Type Client</th>
+                                <th class="p-3.5">Commune / Dép</th>
+                                <th class="p-3.5">Téléphone / Email</th>
+                                <th class="p-3.5">Chantiers Rattachés</th>
+                                <th class="p-3.5 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clientsTableBody" class="divide-y divide-slate-100">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB 9 : RENTABILITÉ ==================== -->
+        <div id="tab-rentabilite" class="tab-content space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-calculator text-forest-600"></i> Calcul Automatique de Rentabilité
+                    </h2>
+                    <p class="text-xs text-slate-500">Marge brute par chantier (Prix Devis - Coût Salarial - Carburant & Équipement)</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-xs font-semibold text-slate-500">Total Chiffré Accepté / Terminé</p>
+                    <p id="rentaTotalChiffre" class="text-2xl font-bold text-slate-800 mt-1">0 €</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-xs font-semibold text-slate-500">Total Coûts Estimés</p>
+                    <p id="rentaTotalCouts" class="text-2xl font-bold text-rose-600 mt-1">0 €</p>
+                </div>
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-xs font-semibold text-slate-500">Marge Brute Globale</p>
+                    <p id="rentaMargeGlobale" class="text-2xl font-bold text-emerald-600 mt-1">0 € (0%)</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50 font-bold text-sm text-slate-700">
+                    Détail de la Marge par Chantier
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-600">
+                        <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[11px] tracking-wider border-b border-slate-200">
+                            <tr>
+                                <th class="p-3.5">Chantier</th>
+                                <th class="p-3.5">Client</th>
+                                <th class="p-3.5">Prix Vendu HT</th>
+                                <th class="p-3.5">Coût Main-d'œuvre</th>
+                                <th class="p-3.5">Coût Carburant/Engin</th>
+                                <th class="p-3.5">Marge Brute (€)</th>
+                                <th class="p-3.5">Taux de Marge (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rentabiliteTableBody" class="divide-y divide-slate-100">
+                            <!-- Injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ==================== MODALES DE SAISIE ==================== -->
+
+    <!-- Modal Devis -->
+    <div id="modalDevis" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
+            <div class="bg-forest-700 text-white p-4 flex justify-between items-center">
+                <h3 id="modalDevisTitle" class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-file-invoice"></i> Ajouter un Devis
+                </h3>
+                <button onclick="closeModal('modalDevis')" class="text-slate-300 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="formDevis" onsubmit="saveDevis(event)" class="p-5 space-y-4 text-xs">
+                <input type="hidden" id="devisId">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">N° Devis</label>
+                        <input type="text" id="devisNum" required placeholder="DEV-2026-001" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Client</label>
+                        <input type="text" id="devisClient" required placeholder="Ex: Mairie de Montmélian" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Intitulé / Prestation</label>
+                    <input type="text" id="devisPrestation" required placeholder="Élagage 4 platanes & broyage rémanents" class="w-full p-2 border border-slate-300 rounded-lg">
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Montant HT (€)</label>
+                        <input type="number" step="0.01" id="devisMontantHT" required placeholder="1200" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Statut</label>
+                        <select id="devisStatut" class="w-full p-2 border border-slate-300 rounded-lg">
+                            <option value="Brouillon">Brouillon</option>
+                            <option value="Envoyé">Envoyé</option>
+                            <option value="Accepté">Accepté</option>
+                            <option value="Refusé">Refusé</option>
+                            <option value="Facturé">Facturé</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Date</label>
+                        <input type="date" id="devisDate" required class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 pt-3 border-t">
+                    <button type="button" onclick="closeModal('modalDevis')" class="px-4 py-2 border rounded-lg hover:bg-slate-100">Annuler</button>
+                    <button type="submit" class="px-4 py-2 bg-forest-600 text-white font-semibold rounded-lg hover:bg-forest-700">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Chantier -->
+    <div id="modalChantier" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-xl overflow-hidden">
+            <div class="bg-forest-700 text-white p-4 flex justify-between items-center">
+                <h3 id="modalChantierTitle" class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-tree"></i> Créer / Modifier un Chantier
+                </h3>
+                <button onclick="closeModal('modalChantier')" class="text-slate-300 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="formChantier" onsubmit="saveChantier(event)" class="p-5 space-y-4 text-xs">
+                <input type="hidden" id="chantierId">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Code Chantier</label>
+                        <input type="text" id="chantierCode" required placeholder="CH-73-01" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Client</label>
+                        <input type="text" id="chantierClient" required placeholder="Nom du client" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Type d'intervention</label>
+                        <select id="chantierType" class="w-full p-2 border border-slate-300 rounded-lg">
+                            <option value="Élagage">Élagage</option>
+                            <option value="Abattage">Abattage délicat</option>
+                            <option value="Broyage">Broyage / Débroussaillage</option>
+                            <option value="Élagage Enedis">Élagage Enedis (Ligne HTA/BT)</option>
+                            <option value="Dessouchage">Dessouchage</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Commune / Lieu</label>
+                        <input type="text" id="chantierCommune" required placeholder="Ex: Chambéry (73)" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Latitude</label>
+                        <input type="number" step="0.000001" id="chantierLat" placeholder="45.566" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Longitude</label>
+                        <input type="number" step="0.000001" id="chantierLng" placeholder="5.920" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Statut</label>
+                        <select id="chantierStatut" class="w-full p-2 border border-slate-300 rounded-lg">
+                            <option value="À venir">À venir</option>
+                            <option value="En cours">En cours</option>
+                            <option value="Terminé">Terminé</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Équipe Assignée</label>
+                        <input type="text" id="chantierEquipe" placeholder="Équipe A (Grimpeurs)" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Prix Vendu HT (€)</label>
+                        <input type="number" step="0.01" id="chantierPrixVendu" placeholder="1500" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 pt-3 border-t">
+                    <button type="button" onclick="closeModal('modalChantier')" class="px-4 py-2 border rounded-lg hover:bg-slate-100">Annuler</button>
+                    <button type="submit" class="px-4 py-2 bg-forest-600 text-white font-semibold rounded-lg hover:bg-forest-700">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Salarié -->
+    <div id="modalSalarie" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
+            <div class="bg-forest-700 text-white p-4 flex justify-between items-center">
+                <h3 id="modalSalarieTitle" class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-user-plus"></i> Fiche Salarié & Habilitations
+                </h3>
+                <button onclick="closeModal('modalSalarie')" class="text-slate-300 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="formSalarie" onsubmit="saveSalarie(event)" class="p-5 space-y-4 text-xs">
+                <input type="hidden" id="salarieId">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Nom & Prénom</label>
+                        <input type="text" id="salarieNom" required placeholder="Jean Dupont" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Poste / Rôle</label>
+                        <select id="salarieRole" class="w-full p-2 border border-slate-300 rounded-lg">
+                            <option value="Chef d'équipe">Chef d'équipe</option>
+                            <option value="Élagueur-grimpeur">Élagueur-grimpeur</option>
+                            <option value="Chauffeur d'engin">Chauffeur d'engin</option>
+                            <option value="Homme de pied">Homme de pied</option>
+                            <option value="Apprenti">Apprenti</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Habilitations & Certifications (séparées par virgule)</label>
+                    <input type="text" id="salarieHabilitations" placeholder="CACES R482, Habilitation Enedis H0V/B1V, SST, CS Taille et Soins" class="w-full p-2 border border-slate-300 rounded-lg">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Date Recyclage / Échéance</label>
+                        <input type="date" id="salarieDateRecyclage" required class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Taux Horaire Chargé (€/h)</label>
+                        <input type="number" step="0.5" id="salarieTauxHoraire" required placeholder="28.5" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Statut</label>
+                        <select id="salarieStatut" class="w-full p-2 border border-slate-300 rounded-lg">
+                            <option value="Disponible">Disponible</option>
+                            <option value="En chantier">En chantier</option>
+                            <option value="En congé">En congé</option>
+                            <option value="Formation">Formation</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Tél Urgence</label>
+                        <input type="text" id="salarieUrgence" placeholder="06 12 34 56 78" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 pt-3 border-t">
+                    <button type="button" onclick="closeModal('modalSalarie')" class="px-4 py-2 border rounded-lg hover:bg-slate-100">Annuler</button>
+                    <button type="submit" class="px-4 py-2 bg-forest-600 text-white font-semibold rounded-lg hover:bg-forest-700">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Matériel -->
+    <div id="modalMateriel" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
+            <div class="bg-forest-700 text-white p-4 flex justify-between items-center">
+                <h3 id="modalMaterielTitle" class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-truck-monster"></i> Ajouter un Équipement / Engin
+                </h3>
+                <button onclick="closeModal('modalMateriel')" class="text-slate-300 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="formMateriel" onsubmit="saveMateriel(event)" class="p-5 space-y-4 text-xs">
+                <input type="hidden" id="materielId">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Code / Modèle</label>
+                        <input type="text" id="materielNom" required placeholder="Broyeur Banditem 200XP" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Catégorie</label>
+                        <select id="materielCategorie" class="w-full p-2 border border-slate-300 rounded-lg">
+                            <option value="Camion / Baffle">Camion / Baffle</option>
+                            <option value="Broyeur de branches">Broyeur de branches</option>
+                            <option value="Rogneuse de souches">Rogneuse de souches</option>
+                            <option value="Robot télécommandé">Robot télécommandé</option>
+                            <option value="Tronçonneuse / Matériel à main">Tronçonneuse / Petit matériel</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Immat / N° Série</label>
+                        <input type="text" id="materielImmat" placeholder="AB-123-CD" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Compteur (Heures/Km)</label>
+                        <input type="text" id="materielCompteur" placeholder="1250 h" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Statut</label>
+                        <select id="materielStatut" class="w-full p-2 border border-slate-300 rounded-lg">
+                            <option value="Opérationnel">Opérationnel</option>
+                            <option value="En maintenance">En maintenance</option>
+                            <option value="Hors service">Hors service</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Prochain Entretien</label>
+                        <input type="date" id="materielProchainEntretien" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 pt-3 border-t">
+                    <button type="button" onclick="closeModal('modalMateriel')" class="px-4 py-2 border rounded-lg hover:bg-slate-100">Annuler</button>
+                    <button type="submit" class="px-4 py-2 bg-forest-600 text-white font-semibold rounded-lg hover:bg-forest-700">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Carburant -->
+    <div id="modalCarburant" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
+            <div class="bg-forest-700 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-gas-pump"></i> Saisie Carburant & Consommables
+                </h3>
+                <button onclick="closeModal('modalCarburant')" class="text-slate-300 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="formCarburant" onsubmit="saveCarburant(event)" class="p-5 space-y-4 text-xs">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Date</label>
+                        <input type="date" id="carbDate" required class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Type Consommable</label>
+                        <select id="carbType" class="w-full p-2 border border-slate-300 rounded-lg">
+                            <option value="Gasoil Routier">Gasoil Routier</option>
+                            <option value="GNR (Gasoil Non Routier)">GNR (Gasoil Non Routier)</option>
+                            <option value="Huile de chaîne">Huile de chaîne</option>
+                            <option value="Mélange 2T Synthétique">Mélange 2T Synthétique</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Quantité (Litres)</label>
+                        <input type="number" step="0.1" id="carbQte" required placeholder="60" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Prix Total (€ TTC)</label>
+                        <input type="number" step="0.01" id="carbPrix" required placeholder="105.00" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Engin / Véhicule</label>
+                        <input type="text" id="carbEngin" placeholder="Ex: Camion MAN 19T" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Saisi par</label>
+                        <input type="text" id="carbSaisiPar" placeholder="Nom de l'agent" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 pt-3 border-t">
+                    <button type="button" onclick="closeModal('modalCarburant')" class="px-4 py-2 border rounded-lg hover:bg-slate-100">Annuler</button>
+                    <button type="submit" class="px-4 py-2 bg-forest-600 text-white font-semibold rounded-lg hover:bg-forest-700">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Client -->
+    <div id="modalClient" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
+            <div class="bg-forest-700 text-white p-4 flex justify-between items-center">
+                <h3 id="modalClientTitle" class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-building-user"></i> Ajouter un Client
+                </h3>
+                <button onclick="closeModal('modalClient')" class="text-slate-300 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="formClient" onsubmit="saveClient(event)" class="p-5 space-y-4 text-xs">
+                <input type="hidden" id="clientId">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Nom / Raison Sociale</label>
+                        <input type="text" id="clientNom" required placeholder="Mairie de Voiron" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Type Client</label>
+                        <select id="clientType" class="w-full p-2 border border-slate-300 rounded-lg">
+                            <option value="Particulier">Particulier</option>
+                            <option value="Mairie / Collectivité">Mairie / Collectivité</option>
+                            <option value="Syndic de Copropriété">Syndic de Copropriété</option>
+                            <option value="Enedis / GRDF">Enedis / GRDF</option>
+                            <option value="Entreprise / BTP">Entreprise / BTP</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold mb-1">Commune / Dép</label>
+                        <input type="text" id="clientCommune" required placeholder="Voiron (38)" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block font-semibold mb-1">Téléphone</label>
+                        <input type="text" id="clientTel" placeholder="04 76 00 00 00" class="w-full p-2 border border-slate-300 rounded-lg">
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-1">Email</label>
+                    <input type="email" id="clientEmail" placeholder="contact@commune.fr" class="w-full p-2 border border-slate-300 rounded-lg">
+                </div>
+                <div class="flex justify-end gap-2 pt-3 border-t">
+                    <button type="button" onclick="closeModal('modalClient')" class="px-4 py-2 border rounded-lg hover:bg-slate-100">Annuler</button>
+                    <button type="submit" class="px-4 py-2 bg-forest-600 text-white font-semibold rounded-lg hover:bg-forest-700">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // Application State & LocalStorage Management
+        // BASE VIERGE (START FROM SCRATCH)
+        // =========================================================================
+
+        let db = {
+            devis: [],
+            chantiers: [],
+            salaries: [],
+            materiel: [],
+            carburant: [],
+            clients: []
+        };
+
+        // Charts references
+        let chartTypeChantiersInstance = null;
+        let chartDevisStatutInstance = null;
+
+        // Leaflet Map reference
+        let leafletMap = null;
+        let mapMarkers = [];
+
+        // Initialisation globale
+        window.onload = function () {
+            loadFromLocalStorage();
+            initLeafletMap();
+            refreshAllViews();
+        };
+
+        function saveToLocalStorage() {
+            localStorage.setItem('arbres_en_cimes_db_v1', JSON.stringify(db));
+        }
+
+        function loadFromLocalStorage() {
+            const data = localStorage.getItem('arbres_en_cimes_db_v1');
+            if (data) {
+                try {
+                    db = JSON.parse(data);
+                } catch (e) {
+                    console.error("Erreur de lecture du localStorage:", e);
+                }
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const bgClass = type === 'success' ? 'bg-emerald-800 text-emerald-50 border-emerald-600' : 'bg-rose-800 text-rose-50 border-rose-600';
+            const icon = type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation';
+
+            toast.className = `pointer-events-auto px-4 py-3 rounded-xl border shadow-lg text-xs font-semibold flex items-center gap-2 transition duration-300 transform translate-y-2 opacity-0 ${bgClass}`;
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // NAVIGATION ONGLETS
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-forest-700', 'shadow-sm');
+                btn.classList.add('hover:bg-forest-500');
+            });
+
+            const activeTab = document.getElementById(`tab-${tabId}`);
+            const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+
+            if (activeTab && activeBtn) {
+                activeTab.classList.add('active');
+                activeBtn.classList.add('bg-forest-700', 'shadow-sm');
+                activeBtn.classList.remove('hover:bg-forest-500');
+            }
+
+            if (tabId === 'carte' && leafletMap) {
+                setTimeout(() => {
+                    leafletMap.invalidateSize();
+                }, 100);
+            }
+        }
+
+        // =========================================================================
+        // Carte Interactive Leaflet.js (Savoie / Isère)
+        // =========================================================================
+
+        function initLeafletMap() {
+            // Centré sur Chambéry / Grenoble / Savoie / Isère (lat: 45.3, lng: 5.9, zoom: 9)
+            leafletMap = L.map('map').setView([45.3, 5.9], 9);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+                attribution: '&copy; OpenStreetMap contributors | Arbres en Cimes V1'
+            }).addTo(leafletMap);
+
+            // Clic sur la carte pour suggérer la création d'un chantier géolocalisé
+            leafletMap.on('click', function(e) {
+                const lat = e.latlng.lat.toFixed(6);
+                const lng = e.latlng.lng.toFixed(6);
+                
+                // Préremplir la modale
+                document.getElementById('chantierId').value = '';
+                document.getElementById('formChantier').reset();
+                document.getElementById('chantierLat').value = lat;
+                document.getElementById('chantierLng').value = lng;
+                document.getElementById('modalChantierTitle').innerText = 'Créer un chantier sur la carte';
+                
+                openModal('modalChantier');
+                showToast(`Coordonnées GPS capturées (${lat}, ${lng})`);
+            });
+
+            updateMapMarkers();
+        }
+
+        function updateMapMarkers() {
+            if (!leafletMap) return;
+
+            // Nettoyer anciens marqueurs
+            mapMarkers.forEach(marker => leafletMap.removeLayer(marker));
+            mapMarkers = [];
+
+            const typeFilter = document.getElementById('mapFilterType').value;
+            const statutFilter = document.getElementById('mapFilterStatut').value;
+
+            db.chantiers.forEach(ch => {
+                if (!ch.lat || !ch.lng) return;
+                if (typeFilter && ch.type !== typeFilter) return;
+                if (statutFilter && ch.statut !== statutFilter) return;
+
+                // Couleur par statut
+                let color = '#0284c7'; // Bleu (À venir)
+                if (ch.statut === 'En cours') color = '#16a34a'; // Vert
+                if (ch.statut === 'Terminé') color = '#64748b'; // Gris
+                if (ch.type === 'Élagage Enedis') color = '#d97706'; // Orange Enedis
+
+                const customMarker = L.circleMarker([ch.lat, ch.lng], {
+                    radius: 9,
+                    fillColor: color,
+                    color: '#ffffff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.85
+                });
+
+                const popupContent = `
+                    <div class="p-1 font-sans text-xs">
+                        <strong class="text-sm font-bold text-slate-800">${ch.code} - ${ch.client}</strong><br>
+                        <span class="text-slate-600">Type : ${ch.type}</span><br>
+                        <span class="text-slate-600">Commune : ${ch.commune}</span><br>
+                        <span class="text-slate-600">Équipe : ${ch.equipe || 'Non assignée'}</span><br>
+                        <span class="mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-bold text-white" style="background-color: ${color}">
+                            ${ch.statut}
+                        </span>
+                    </div>
+                `;
+
+                customMarker.bindPopup(popupContent);
+                customMarker.addTo(leafletMap);
+                mapMarkers.push(customMarker);
+            });
+        }
+
+        // =========================================================================
+        // Vues & Rendu dynamique des tables
+        // =========================================================================
+
+        function refreshAllViews() {
+            renderDashboardKPIs();
+            renderCharts();
+            renderDevisTable();
+            renderChantiersTable();
+            renderSalariesTable();
+            renderMaterielTable();
+            renderCarburantTable();
+            renderClientsTable();
+            renderRentabiliteTable();
+            updateMapMarkers();
+        }
+
+        // TABLEAU DE BORD KPI
+        function renderDashboardKPIs() {
+            // CA Réalisé (Chantiers terminés)
+            const caTotal = db.chantiers
+                .filter(c => c.statut === 'Terminé')
+                .reduce((acc, c) => acc + (parseFloat(c.prixVendu) || 0), 0);
+            
+            document.getElementById('kpi-ca').innerText = caTotal.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+
+            // Devis
+            const devisEnCoursMontant = db.devis
+                .filter(d => d.statut === 'Accepté' || d.statut === 'Envoyé')
+                .reduce((acc, d) => acc + (parseFloat(d.montantHT) || 0), 0);
+            
+            document.getElementById('kpi-devis-montant').innerText = devisEnCoursMontant.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+            document.getElementById('kpi-devis-count').innerText = `${db.devis.length} devis au total enregistrés`;
+
+            // Chantiers
+            const chantiersActifs = db.chantiers.filter(c => c.statut === 'En cours').length;
+            document.getElementById('kpi-chantiers-actifs').innerText = chantiersActifs;
+            document.getElementById('kpi-chantiers-total').innerText = `${db.chantiers.length} chantiers enregistrés`;
+
+            // Salariés & Matériel
+            const maxSalaries = db.salaries.length;
+            const enginsOp = db.materiel.filter(m => m.statut === 'Opérationnel').length;
+            document.getElementById('kpi-salaries-materiel').innerText = `${maxSalaries} sal. / ${enginsOp} engins`;
+        }
+
+        // GRAPHIQUES CHART.JS DYNAMIQUES
+        function renderCharts() {
+            // Chart 1: Types de chantiers
+            const emptyChartType = document.getElementById('emptyChartType');
+            const emptyChartDevis = document.getElementById('emptyChartDevis');
+
+            if (db.chantiers.length === 0) {
+                emptyChartType.classList.remove('hidden');
+            } else {
+                emptyChartType.classList.add('hidden');
+            }
+
+            const typesCount = {};
+            db.chantiers.forEach(c => {
+                typesCount[c.type] = (typesCount[c.type] || 0) + 1;
+            });
+
+            const typeLabels = Object.keys(typesCount);
+            const typeValues = Object.values(typesCount);
+
+            if (chartTypeChantiersInstance) chartTypeChantiersInstance.destroy();
+
+            const ctxType = document.getElementById('chartTypeChantiers').getContext('2d');
+            chartTypeChantiersInstance = new Chart(ctxType, {
+                type: 'doughnut',
+                data: {
+                    labels: typeLabels.length ? typeLabels : ['Aucune donnée'],
+                    datasets: [{
+                        data: typeValues.length ? typeValues : [1],
+                        backgroundColor: ['#2d6a4f', '#bc6c25', '#0284c7', '#d97706', '#7c3aed'],
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }
+                }
+            });
+
+            // Chart 2: Devis statut
+            if (db.devis.length === 0) {
+                emptyChartDevis.classList.remove('hidden');
+            } else {
+                emptyChartDevis.classList.add('hidden');
+            }
+
+            const statutsDevis = { 'Brouillon': 0, 'Envoyé': 0, 'Accepté': 0, 'Refusé': 0, 'Facturé': 0 };
+            db.devis.forEach(d => {
+                if (statutsDevis[d.statut] !== undefined) statutsDevis[d.statut]++;
+            });
+
+            if (chartDevisStatutInstance) chartDevisStatutInstance.destroy();
+
+            const ctxDevis = document.getElementById('chartDevisStatut').getContext('2d');
+            chartDevisStatutInstance = new Chart(ctxDevis, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(statutsDevis),
+                    datasets: [{
+                        label: 'Nombre de Devis',
+                        data: Object.values(statutsDevis),
+                        backgroundColor: ['#94a3b8', '#38bdf8', '#22c55e', '#f43f5e', '#a855f7']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        // RENDU TABLE DEVIS
+        function renderDevisTable() {
+            const tbody = document.getElementById('devisTableBody');
+            const search = document.getElementById('searchDevis').value.toLowerCase();
+            const filterStatut = document.getElementById('filterDevisStatut').value;
+
+            const filtered = db.devis.filter(d => {
+                const matchSearch = d.num.toLowerCase().includes(search) || d.client.toLowerCase().includes(search) || d.prestation.toLowerCase().includes(search);
+                const matchStatut = !filterStatut || d.statut === filterStatut;
+                return matchSearch && matchStatut;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="p-8 text-center text-slate-400">
+                            <i class="fa-solid fa-folder-open text-3xl mb-2 text-slate-300"></i>
+                            <p class="font-medium">Aucun devis enregistré</p>
+                            <p class="text-[11px] mt-1 text-slate-400">Cliquez sur 'Créer un devis' pour commencer.</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(d => {
+                const ttc = (parseFloat(d.montantHT) * 1.20).toFixed(2);
+                let badgeClass = 'bg-slate-100 text-slate-700';
+                if (d.statut === 'Accepté') badgeClass = 'bg-emerald-100 text-emerald-800 font-semibold';
+                if (d.statut === 'Envoyé') badgeClass = 'bg-sky-100 text-sky-800';
+                if (d.statut === 'Refusé') badgeClass = 'bg-rose-100 text-rose-800';
+                if (d.statut === 'Facturé') badgeClass = 'bg-purple-100 text-purple-800';
+
+                return `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-3.5 font-bold text-slate-800">${d.num}</td>
+                        <td class="p-3.5 font-medium text-slate-700">${d.client}</td>
+                        <td class="p-3.5">${d.prestation}</td>
+                        <td class="p-3.5 font-semibold text-slate-800">${parseFloat(d.montantHT).toLocaleString('fr-FR')} €</td>
+                        <td class="p-3.5 font-semibold text-slate-500">${parseFloat(ttc).toLocaleString('fr-FR')} €</td>
+                        <td class="p-3.5"><span class="px-2.5 py-1 rounded-full text-[10px] ${badgeClass}">${d.statut}</span></td>
+                        <td class="p-3.5 text-slate-500">${d.date}</td>
+                        <td class="p-3.5 text-right space-x-1">
+                            <button onclick="editDevis('${d.id}')" class="p-1.5 text-slate-500 hover:text-forest-600 rounded"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteDevis('${d.id}')" class="p-1.5 text-slate-500 hover:text-rose-600 rounded"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // RENDU TABLE CHANTIERS
+        function renderChantiersTable() {
+            const tbody = document.getElementById('chantiersTableBody');
+            const search = document.getElementById('searchChantiers').value.toLowerCase();
+            const filterType = document.getElementById('filterChantierType').value;
+            const filterStatut = document.getElementById('filterChantierStatut').value;
+
+            const filtered = db.chantiers.filter(c => {
+                const matchSearch = c.code.toLowerCase().includes(search) || c.client.toLowerCase().includes(search) || c.commune.toLowerCase().includes(search);
+                const matchType = !filterType || c.type === filterType;
+                const matchStatut = !filterStatut || c.statut === filterStatut;
+                return matchSearch && matchType && matchStatut;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="p-8 text-center text-slate-400">
+                            <i class="fa-solid fa-helmet-safety text-3xl mb-2 text-slate-300"></i>
+                            <p class="font-medium">Aucun chantier enregistré</p>
+                            <p class="text-[11px] mt-1 text-slate-400">Cliquez sur 'Nouveau chantier' pour ajouter une opération.</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(c => {
+                let badgeClass = 'bg-sky-100 text-sky-800';
+                if (c.statut === 'En cours') badgeClass = 'bg-emerald-100 text-emerald-800 font-bold';
+                if (c.statut === 'Terminé') badgeClass = 'bg-slate-200 text-slate-700';
+
+                return `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-3.5 font-bold text-slate-800">${c.code}</td>
+                        <td class="p-3.5"><div class="font-semibold text-slate-800">${c.client}</div><div class="text-[10px] text-slate-400">${c.commune}</div></td>
+                        <td class="p-3.5"><span class="bg-forest-50 text-forest-700 px-2 py-0.5 rounded border border-forest-100 font-medium">${c.type}</span></td>
+                        <td class="p-3.5 text-slate-700">${c.equipe || 'Non assigné'}</td>
+                        <td class="p-3.5"><span class="px-2.5 py-1 rounded-full text-[10px] ${badgeClass}">${c.statut}</span></td>
+                        <td class="p-3.5 font-semibold text-slate-700">${parseFloat(c.prixVendu || 0).toLocaleString('fr-FR')} €</td>
+                        <td class="p-3.5 text-right space-x-1">
+                            <button onclick="editChantier('${c.id}')" class="p-1.5 text-slate-500 hover:text-forest-600 rounded"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteChantier('${c.id}')" class="p-1.5 text-slate-500 hover:text-rose-600 rounded"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // RENDU TABLE SALARIÉS & HABILITATIONS
+        function renderSalariesTable() {
+            const tbody = document.getElementById('salariesTableBody');
+            const search = document.getElementById('searchSalaries').value.toLowerCase();
+            const filterRole = document.getElementById('filterSalarieRole').value;
+            const filterStatut = document.getElementById('filterSalarieStatut').value;
+
+            const filtered = db.salaries.filter(s => {
+                const matchSearch = s.nom.toLowerCase().includes(search) || s.role.toLowerCase().includes(search) || (s.habilitations && s.habilitations.toLowerCase().includes(search));
+                const matchRole = !filterRole || s.role === filterRole;
+                const matchStatut = !filterStatut || s.statut === filterStatut;
+                return matchSearch && matchRole && matchStatut;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="p-8 text-center text-slate-400">
+                            <i class="fa-solid fa-users-slash text-3xl mb-2 text-slate-300"></i>
+                            <p class="font-medium">Aucun salarié dans l'effectif</p>
+                            <p class="text-[11px] mt-1 text-slate-400">Cliquez sur 'Nouveau salarié' pour ajouter un membre d'équipe.</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            const today = new Date();
+
+            tbody.innerHTML = filtered.map(s => {
+                // Alerte recyclage date
+                let recyclageBadge = `<span class="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200"><i class="fa-solid fa-shield-check text-emerald-600"></i> Valide (${s.dateRecyclage})</span>`;
+                if (s.dateRecyclage) {
+                    const recDate = new Date(s.dateRecyclage);
+                    const diffDays = Math.ceil((recDate - today) / (1000 * 60 * 60 * 24));
+                    if (diffDays < 0) {
+                        recyclageBadge = `<span class="text-rose-700 font-bold bg-rose-50 px-2 py-0.5 rounded border border-rose-200"><i class="fa-solid fa-triangle-exclamation"></i> EXPIRÉ (${s.dateRecyclage})</span>`;
+                    } else if (diffDays <= 30) {
+                        recyclageBadge = `<span class="text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200"><i class="fa-solid fa-clock"></i> Recyclage sous ${diffDays}j</span>`;
+                    }
+                }
+
+                // Habilitations tags
+                const habTags = (s.habilitations || '').split(',').map(h => `<span class="bg-slate-100 text-slate-700 text-[10px] px-2 py-0.5 rounded border border-slate-200">${h.trim()}</span>`).join(' ');
+
+                return `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-3.5">
+                            <div class="font-bold text-slate-800 flex items-center gap-2">
+                                <div class="w-7 h-7 rounded-full bg-forest-600 text-white flex items-center justify-center text-xs font-bold">
+                                    ${s.nom.charAt(0)}
+                                </div>
+                                ${s.nom}
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-0.5"><i class="fa-solid fa-phone text-[9px]"></i> ${s.urgence || 'N/C'}</div>
+                        </td>
+                        <td class="p-3.5 font-semibold text-slate-700">${s.role}</td>
+                        <td class="p-3.5 flex flex-wrap gap-1">${habTags || '<span class="text-slate-400">Aucune</span>'}</td>
+                        <td class="p-3.5">${recyclageBadge}</td>
+                        <td class="p-3.5 font-bold text-slate-800">${s.tauxHoraire} €/h</td>
+                        <td class="p-3.5"><span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">${s.statut}</span></td>
+                        <td class="p-3.5 text-right space-x-1">
+                            <button onclick="editSalarie('${s.id}')" class="p-1.5 text-slate-500 hover:text-forest-600 rounded"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteSalarie('${s.id}')" class="p-1.5 text-slate-500 hover:text-rose-600 rounded"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // RENDU TABLE MATÉRIEL
+        function renderMaterielTable() {
+            const tbody = document.getElementById('materielTableBody');
+            const search = document.getElementById('searchMateriel').value.toLowerCase();
+
+            const filtered = db.materiel.filter(m => m.nom.toLowerCase().includes(search) || m.categorie.toLowerCase().includes(search));
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="p-8 text-center text-slate-400">
+                            <i class="fa-solid fa-truck-monster text-3xl mb-2 text-slate-300"></i>
+                            <p class="font-medium">Aucun engin ni équipement dans le parc</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(m => `
+                <tr class="hover:bg-slate-50 transition">
+                    <td class="p-3.5 font-bold text-slate-800">${m.nom}</td>
+                    <td class="p-3.5 text-slate-600">${m.categorie}</td>
+                    <td class="p-3.5 font-mono text-slate-700">${m.immat || '-'}</td>
+                    <td class="p-3.5 font-semibold text-slate-800">${m.compteur || '-'}</td>
+                    <td class="p-3.5 text-slate-600">${m.prochainEntretien || '-'}</td>
+                    <td class="p-3.5"><span class="px-2 py-0.5 rounded text-[10px] font-semibold ${m.statut === 'Opérationnel' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${m.statut}</span></td>
+                    <td class="p-3.5 text-right space-x-1">
+                        <button onclick="editMateriel('${m.id}')" class="p-1.5 text-slate-500 hover:text-forest-600 rounded"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteMateriel('${m.id}')" class="p-1.5 text-slate-500 hover:text-rose-600 rounded"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // RENDU TABLE CARBURANT
+        function renderCarburantTable() {
+            const tbody = document.getElementById('carburantTableBody');
+
+            let totalGasoil = 0;
+            let totalHuile = 0;
+            let totalEuros = 0;
+
+            db.carburant.forEach(c => {
+                const qte = parseFloat(c.qte) || 0;
+                const prix = parseFloat(c.prix) || 0;
+                totalEuros += prix;
+
+                if (c.type.includes('Gasoil') || c.type.includes('GNR')) totalGasoil += qte;
+                if (c.type.includes('Huile') || c.type.includes('Mélange')) totalHuile += qte;
+            });
+
+            document.getElementById('totalGasoil').innerText = `${totalGasoil.toFixed(1)} L`;
+            document.getElementById('totalHuile').innerText = `${totalHuile.toFixed(1)} L`;
+            document.getElementById('totalCarburantEuros').innerText = `${totalEuros.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`;
+
+            if (db.carburant.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="p-8 text-center text-slate-400">
+                            <i class="fa-solid fa-gas-pump text-3xl mb-2 text-slate-300"></i>
+                            <p class="font-medium">Aucun suivi carburant saisi</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = db.carburant.map(c => `
+                <tr class="hover:bg-slate-50 transition">
+                    <td class="p-3.5 font-semibold text-slate-800">${c.date}</td>
+                    <td class="p-3.5">${c.type}</td>
+                    <td class="p-3.5 font-bold text-slate-800">${c.qte} L</td>
+                    <td class="p-3.5 font-bold text-emerald-700">${parseFloat(c.prix).toLocaleString('fr-FR')} €</td>
+                    <td class="p-3.5 text-slate-600">${c.engin || '-'}</td>
+                    <td class="p-3.5 text-slate-500">${c.saisiPar || '-'}</td>
+                    <td class="p-3.5 text-right">
+                        <button onclick="deleteCarburant('${c.id}')" class="p-1.5 text-slate-500 hover:text-rose-600 rounded"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // RENDU TABLE CLIENTS
+        function renderClientsTable() {
+            const tbody = document.getElementById('clientsTableBody');
+            const search = document.getElementById('searchClients').value.toLowerCase();
+
+            const filtered = db.clients.filter(c => c.nom.toLowerCase().includes(search) || c.commune.toLowerCase().includes(search));
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="p-8 text-center text-slate-400">
+                            <i class="fa-solid fa-address-book text-3xl mb-2 text-slate-300"></i>
+                            <p class="font-medium">Aucun client enregistré</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(c => {
+                const countChantiers = db.chantiers.filter(ch => ch.client.toLowerCase() === c.nom.toLowerCase()).length;
+                return `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-3.5 font-bold text-slate-800">${c.nom}</td>
+                        <td class="p-3.5"><span class="bg-slate-100 px-2 py-0.5 rounded text-[10px] font-medium border border-slate-200">${c.type}</span></td>
+                        <td class="p-3.5 font-semibold text-slate-700">${c.commune}</td>
+                        <td class="p-3.5 text-slate-600">${c.tel || ''} ${c.email ? '| ' + c.email : ''}</td>
+                        <td class="p-3.5 font-bold text-forest-700">${countChantiers} chantier(s)</td>
+                        <td class="p-3.5 text-right space-x-1">
+                            <button onclick="editClient('${c.id}')" class="p-1.5 text-slate-500 hover:text-forest-600 rounded"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="deleteClient('${c.id}')" class="p-1.5 text-slate-500 hover:text-rose-600 rounded"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // RENDU RENTABILITÉ
+        function renderRentabiliteTable() {
+            const tbody = document.getElementById('rentabiliteTableBody');
+
+            let sumChiffre = 0;
+            let sumCouts = 0;
+
+            if (db.chantiers.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="p-8 text-center text-slate-400">
+                            <i class="fa-solid fa-calculator text-3xl mb-2 text-slate-300"></i>
+                            <p class="font-medium">Aucune donnée pour estimer la rentabilité</p>
+                        </td>
+                    </tr>
+                `;
+                document.getElementById('rentaTotalChiffre').innerText = '0 €';
+                document.getElementById('rentaTotalCouts').innerText = '0 €';
+                document.getElementById('rentaMargeGlobale').innerText = '0 € (0%)';
+                return;
+            }
+
+            tbody.innerHTML = db.chantiers.map(ch => {
+                const prixVendu = parseFloat(ch.prixVendu) || 0;
+                
+                // Simulation des coûts standard d'élagage (Mo = ~45% du devis, Carburant = ~10%)
+                const coutMo = (prixVendu * 0.45);
+                const coutCarb = (prixVendu * 0.10);
+                const coutTotal = coutMo + coutCarb;
+                const marge = prixVendu - coutTotal;
+                const tauxMarge = prixVendu > 0 ? ((marge / prixVendu) * 100).toFixed(1) : 0;
+
+                sumChiffre += prixVendu;
+                sumCouts += coutTotal;
+
+                return `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-3.5 font-bold text-slate-800">${ch.code}</td>
+                        <td class="p-3.5 font-medium text-slate-700">${ch.client}</td>
+                        <td class="p-3.5 font-bold text-slate-900">${prixVendu.toLocaleString('fr-FR')} €</td>
+                        <td class="p-3.5 text-rose-700">${coutMo.toLocaleString('fr-FR')} €</td>
+                        <td class="p-3.5 text-amber-700">${coutCarb.toLocaleString('fr-FR')} €</td>
+                        <td class="p-3.5 font-bold ${marge >= 0 ? 'text-emerald-700' : 'text-rose-700'}">${marge.toLocaleString('fr-FR')} €</td>
+                        <td class="p-3.5 font-extrabold ${tauxMarge >= 30 ? 'text-emerald-600' : 'text-slate-700'}">${tauxMarge} %</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const margeGlobale = sumChiffre - sumCouts;
+            const tauxGlobal = sumChiffre > 0 ? ((margeGlobale / sumChiffre) * 100).toFixed(1) : 0;
+
+            document.getElementById('rentaTotalChiffre').innerText = `${sumChiffre.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`;
+            document.getElementById('rentaTotalCouts').innerText = `${sumCouts.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}`;
+            document.getElementById('rentaMargeGlobale').innerText = `${margeGlobale.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })} (${tauxGlobal}%)`;
+        }
+
+        // =========================================================================
+        // FORMULAIRES & SAUVEGARDES (CRUD)
+        // =========================================================================
+
+        function openModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        // DEVIS CRUD
+        function saveDevis(e) {
+            e.preventDefault();
+            const id = document.getElementById('devisId').value;
+            const devisObj = {
+                id: id || Date.now().toString(),
+                num: document.getElementById('devisNum').value,
+                client: document.getElementById('devisClient').value,
+                prestation: document.getElementById('devisPrestation').value,
+                montantHT: document.getElementById('devisMontantHT').value,
+                statut: document.getElementById('devisStatut').value,
+                date: document.getElementById('devisDate').value
+            };
+
+            if (id) {
+                const index = db.devis.findIndex(d => d.id === id);
+                if (index !== -1) db.devis[index] = devisObj;
+            } else {
+                db.devis.push(devisObj);
+            }
+
+            saveToLocalStorage();
+            refreshAllViews();
+            closeModal('modalDevis');
+            document.getElementById('formDevis').reset();
+            showToast('Devis enregistré avec succès !');
+        }
+
+        function editDevis(id) {
+            const devis = db.devis.find(d => d.id === id);
+            if (!devis) return;
+            document.getElementById('devisId').value = devis.id;
+            document.getElementById('devisNum').value = devis.num;
+            document.getElementById('devisClient').value = devis.client;
+            document.getElementById('devisPrestation').value = devis.prestation;
+            document.getElementById('devisMontantHT').value = devis.montantHT;
+            document.getElementById('devisStatut').value = devis.statut;
+            document.getElementById('devisDate').value = devis.date;
+            openModal('modalDevis');
+        }
+
+        function deleteDevis(id) {
+            db.devis = db.devis.filter(d => d.id !== id);
+            saveToLocalStorage();
+            refreshAllViews();
+            showToast('Devis supprimé');
+        }
+
+        // CHANTIERS CRUD
+        function saveChantier(e) {
+            e.preventDefault();
+            const id = document.getElementById('chantierId').value;
+            const chantierObj = {
+                id: id || Date.now().toString(),
+                code: document.getElementById('chantierCode').value,
+                client: document.getElementById('chantierClient').value,
+                type: document.getElementById('chantierType').value,
+                commune: document.getElementById('chantierCommune').value,
+                lat: parseFloat(document.getElementById('chantierLat').value) || null,
+                lng: parseFloat(document.getElementById('chantierLng').value) || null,
+                statut: document.getElementById('chantierStatut').value,
+                equipe: document.getElementById('chantierEquipe').value,
+                prixVendu: document.getElementById('chantierPrixVendu').value
+            };
+
+            if (id) {
+                const index = db.chantiers.findIndex(c => c.id === id);
+                if (index !== -1) db.chantiers[index] = chantierObj;
+            } else {
+                db.chantiers.push(chantierObj);
+            }
+
+            saveToLocalStorage();
+            refreshAllViews();
+            closeModal('modalChantier');
+            document.getElementById('formChantier').reset();
+            showToast('Chantier enregistré avec succès !');
+        }
+
+        function editChantier(id) {
+            const ch = db.chantiers.find(c => c.id === id);
+            if (!ch) return;
+            document.getElementById('chantierId').value = ch.id;
+            document.getElementById('chantierCode').value = ch.code;
+            document.getElementById('chantierClient').value = ch.client;
+            document.getElementById('chantierType').value = ch.type;
+            document.getElementById('chantierCommune').value = ch.commune;
+            document.getElementById('chantierLat').value = ch.lat || '';
+            document.getElementById('chantierLng').value = ch.lng || '';
+            document.getElementById('chantierStatut').value = ch.statut;
+            document.getElementById('chantierEquipe').value = ch.equipe;
+            document.getElementById('chantierPrixVendu').value = ch.prixVendu;
+            openModal('modalChantier');
+        }
+
+        function deleteChantier(id) {
+            db.chantiers = db.chantiers.filter(c => c.id !== id);
+            saveToLocalStorage();
+            refreshAllViews();
+            showToast('Chantier supprimé');
+        }
+
+        // SALARIÉS CRUD
+        function saveSalarie(e) {
+            e.preventDefault();
+            const id = document.getElementById('salarieId').value;
+            const salObj = {
+                id: id || Date.now().toString(),
+                nom: document.getElementById('salarieNom').value,
+                role: document.getElementById('salarieRole').value,
+                habilitations: document.getElementById('salarieHabilitations').value,
+                dateRecyclage: document.getElementById('salarieDateRecyclage').value,
+                tauxHoraire: document.getElementById('salarieTauxHoraire').value,
+                statut: document.getElementById('salarieStatut').value,
+                urgence: document.getElementById('salarieUrgence').value
+            };
+
+            if (id) {
+                const index = db.salaries.findIndex(s => s.id === id);
+                if (index !== -1) db.salaries[index] = salObj;
+            } else {
+                db.salaries.push(salObj);
+            }
+
+            saveToLocalStorage();
+            refreshAllViews();
+            closeModal('modalSalarie');
+            document.getElementById('formSalarie').reset();
+            showToast('Salarié enregistré avec succès !');
+        }
+
+        function editSalarie(id) {
+            const sal = db.salaries.find(s => s.id === id);
+            if (!sal) return;
+            document.getElementById('salarieId').value = sal.id;
+            document.getElementById('salarieNom').value = sal.nom;
+            document.getElementById('salarieRole').value = sal.role;
+            document.getElementById('salarieHabilitations').value = sal.habilitations;
+            document.getElementById('salarieDateRecyclage').value = sal.dateRecyclage;
+            document.getElementById('salarieTauxHoraire').value = sal.tauxHoraire;
+            document.getElementById('salarieStatut').value = sal.statut;
+            document.getElementById('salarieUrgence').value = sal.urgence;
+            openModal('modalSalarie');
+        }
+
+        function deleteSalarie(id) {
+            db.salaries = db.salaries.filter(s => s.id !== id);
+            saveToLocalStorage();
+            refreshAllViews();
+            showToast('Salarié supprimé');
+        }
+
+        // MATÉRIEL CRUD
+        function saveMateriel(e) {
+            e.preventDefault();
+            const id = document.getElementById('materielId').value;
+            const matObj = {
+                id: id || Date.now().toString(),
+                nom: document.getElementById('materielNom').value,
+                categorie: document.getElementById('materielCategorie').value,
+                immat: document.getElementById('materielImmat').value,
+                compteur: document.getElementById('materielCompteur').value,
+                statut: document.getElementById('materielStatut').value,
+                prochainEntretien: document.getElementById('materielProchainEntretien').value
+            };
+
+            if (id) {
+                const index = db.materiel.findIndex(m => m.id === id);
+                if (index !== -1) db.materiel[index] = matObj;
+            } else {
+                db.materiel.push(matObj);
+            }
+
+            saveToLocalStorage();
+            refreshAllViews();
+            closeModal('modalMateriel');
+            document.getElementById('formMateriel').reset();
+            showToast('Matériel enregistré avec succès !');
+        }
+
+        function editMateriel(id) {
+            const mat = db.materiel.find(m => m.id === id);
+            if (!mat) return;
+            document.getElementById('materielId').value = mat.id;
+            document.getElementById('materielNom').value = mat.nom;
+            document.getElementById('materielCategorie').value = mat.categorie;
+            document.getElementById('materielImmat').value = mat.immat;
+            document.getElementById('materielCompteur').value = mat.compteur;
+            document.getElementById('materielStatut').value = mat.statut;
+            document.getElementById('materielProchainEntretien').value = mat.prochainEntretien;
+            openModal('modalMateriel');
+        }
+
+        function deleteMateriel(id) {
+            db.materiel = db.materiel.filter(m => m.id !== id);
+            saveToLocalStorage();
+            refreshAllViews();
+            showToast('Matériel supprimé');
+        }
+
+        // CARBURANT CRUD
+        function saveCarburant(e) {
+            e.preventDefault();
+            const carbObj = {
+                id: Date.now().toString(),
+                date: document.getElementById('carbDate').value,
+                type: document.getElementById('carbType').value,
+                qte: document.getElementById('carbQte').value,
+                prix: document.getElementById('carbPrix').value,
+                engin: document.getElementById('carbEngin').value,
+                saisiPar: document.getElementById('carbSaisiPar').value
+            };
+
+            db.carburant.push(carbObj);
+            saveToLocalStorage();
+            refreshAllViews();
+            closeModal('modalCarburant');
+            document.getElementById('formCarburant').reset();
+            showToast('Plein carburant enregistré !');
+        }
+
+        function deleteCarburant(id) {
+            db.carburant = db.carburant.filter(c => c.id !== id);
+            saveToLocalStorage();
+            refreshAllViews();
+            showToast('Ligne supprimée');
+        }
+
+        // CLIENTS CRUD
+        function saveClient(e) {
+            e.preventDefault();
+            const id = document.getElementById('clientId').value;
+            const clientObj = {
+                id: id || Date.now().toString(),
+                nom: document.getElementById('clientNom').value,
+                type: document.getElementById('clientType').value,
+                commune: document.getElementById('clientCommune').value,
+                tel: document.getElementById('clientTel').value,
+                email: document.getElementById('clientEmail').value
+            };
+
+            if (id) {
+                const index = db.clients.findIndex(c => c.id === id);
+                if (index !== -1) db.clients[index] = clientObj;
+            } else {
+                db.clients.push(clientObj);
+            }
+
+            saveToLocalStorage();
+            refreshAllViews();
+            closeModal('modalClient');
+            document.getElementById('formClient').reset();
+            showToast('Client enregistré !');
+        }
+
+        function editClient(id) {
+            const cl = db.clients.find(c => c.id === id);
+            if (!cl) return;
+            document.getElementById('clientId').value = cl.id;
+            document.getElementById('clientNom').value = cl.nom;
+            document.getElementById('clientType').value = cl.type;
+            document.getElementById('clientCommune').value = cl.commune;
+            document.getElementById('clientTel').value = cl.tel;
+            document.getElementById('clientEmail').value = cl.email;
+            openModal('modalClient');
+        }
+
+        function deleteClient(id) {
+            db.clients = db.clients.filter(c => c.id !== id);
+            saveToLocalStorage();
+            refreshAllViews();
+            showToast('Client supprimé');
+        }
+
+        // =========================================================================
+        // DONNÉES D'EXEMPLE & GESTION DE LA BASE
+        // =========================================================================
+
+        function loadDemoData() {
+            db = {
+                devis: [
+                    { id: '1', num: 'DEV-2026-012', client: 'Mairie de Montmélian', prestation: 'Sécurisation 12 platanes bord du canal', montantHT: '3400', statut: 'Accepté', date: '2026-09-15' },
+                    { id: '2', num: 'DEV-2026-015', client: 'Enedis Savoie', prestation: 'Élagage sous ligne HTA Combe de Savoie', montantHT: '8500', statut: 'Facturé', date: '2026-09-20' },
+                    { id: '3', num: 'DEV-2026-018', client: 'Syndic Les Marmottes (Grenoble)', prestation: 'Abattage d\'un épicéa dangereux en cour intérieure', montantHT: '1800', statut: 'Envoyé', date: '2026-09-28' }
+                ],
+                chantiers: [
+                    { id: '101', code: 'CH-73-01', client: 'Mairie de Montmélian', type: 'Élagage', commune: 'Montmélian (73)', lat: 45.5015, lng: 6.0520, statut: 'En cours', equipe: 'Équipe A (Grimpeurs)', prixVendu: '3400' },
+                    { id: '102', code: 'CH-73-02', client: 'Enedis Savoie', type: 'Élagage Enedis', commune: 'Albertville (73)', lat: 45.6755, lng: 6.3925, statut: 'Terminé', equipe: 'Équipe Enedis H0V', prixVendu: '8500' },
+                    { id: '103', code: 'CH-38-01', client: 'Château du Touvet', type: 'Abattage', commune: 'Le Touvet (38)', lat: 45.3582, lng: 5.9482, statut: 'À venir', equipe: 'Équipe B (Abattage)', prixVendu: '4200' }
+                ],
+                salaries: [
+                    { id: '201', nom: 'Marc Veyrat', role: 'Chef d\'équipe', habilitations: 'CS Taille & Soins, CACES R482, Habilitation Enedis H0V/B1V, SST', dateRecyclage: '2027-05-10', tauxHoraire: '32.00', statut: 'En chantier', urgence: '06 12 89 45 00' },
+                    { id: '202', nom: 'Julien Mollard', role: 'Élagueur-grimpeur', habilitations: 'CS Taille & Soins des Arbres, SST, Permis BE', dateRecyclage: '2026-11-01', tauxHoraire: '27.50', statut: 'En chantier', urgence: '06 98 76 54 32' },
+                    { id: '203', nom: 'Thomas Rey', role: 'Chauffeur d\'engin', habilitations: 'CACES R482 C1/R486, Permis C (Poids Lourds), Certiphyto', dateRecyclage: '2025-12-15', tauxHoraire: '26.00', statut: 'Disponible', urgence: '06 11 22 33 44' }
+                ],
+                materiel: [
+                    { id: '301', nom: 'Broyeur Bandit 200XP (150 CV)', categorie: 'Broyeur de branches', immat: 'FK-892-AZ', compteur: '1420 h', statut: 'Opérationnel', prochainEntretien: '2026-11-15' },
+                    { id: '302', nom: 'Camion MAN 19T Bi-benne', categorie: 'Camion / Baffle', immat: 'GH-341-TY', compteur: '185 000 km', statut: 'Opérationnel', prochainEntretien: '2026-10-30' },
+                    { id: '303', nom: 'Robot de pente Green Climber', categorie: 'Robot télécommandé', immat: 'SER-9912', compteur: '310 h', statut: 'En maintenance', prochainEntretien: '2026-10-05' }
+                ],
+                carburant: [
+                    { id: '401', date: '2026-09-25', type: 'GNR (Gasoil Non Routier)', qte: '120', prix: '186.00', engin: 'Broyeur Bandit 200XP', saisiPar: 'Marc Veyrat' },
+                    { id: '402', date: '2026-09-27', type: 'Mélange 2T Synthétique', qte: '20', prix: '45.00', engin: 'Tronçonneuses Stihl MS661', saisiPar: 'Julien Mollard' }
+                ],
+                clients: [
+                    { id: '501', nom: 'Mairie de Montmélian', type: 'Mairie / Collectivité', commune: 'Montmélian (73)', tel: '04 79 84 07 07', email: 'technique@montmelian.com' },
+                    { id: '502', nom: 'Enedis Savoie', type: 'Enedis / GRDF', commune: 'Chambéry (73)', tel: '08 00 12 34 56', email: 'prestataires@enedis.fr' }
+                ]
+            };
+
+            saveToLocalStorage();
+            refreshAllViews();
+            showToast('Données de démonstration chargées !');
+        }
+
+        function confirmResetAllData() {
+            if (confirm("Êtes-vous sûr de vouloir tout réinitialiser à zéro ? Toutes les données saisies seront effacées.")) {
+                db = { devis: [], chantiers: [], salaries: [], materiel: [], carburant: [], clients: [] };
+                saveToLocalStorage();
+                refreshAllViews();
+                showToast('Base réinitialisée à zéro', 'error');
+            }
+        }
+
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db, null, 2));
+            const dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", `arbres_en_cimes_export_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+            showToast('Export JSON téléchargé !');
+        }
+
+        function importDataJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported && typeof imported === 'object') {
+                        db = Object.assign({ devis: [], chantiers: [], salaries: [], materiel: [], carburant: [], clients: [] }, imported);
+                        saveToLocalStorage();
+                        refreshAllViews();
+                        showToast('Base de données importée avec succès !');
+                    }
+                } catch (err) {
+                    showToast('Erreur lors du décodage du fichier JSON', 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
